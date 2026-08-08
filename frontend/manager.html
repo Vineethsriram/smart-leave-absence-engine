@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Leave Portal — Manager/HR</title>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.6/dist/amazon-cognito-identity.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --ink: #1b1f24; --muted: #6b7280; --line: #e5e7eb;
+    --brand: #2563eb; --brand-dark: #1d4ed8;
+    --ok: #16a34a; --ok-bg: #dcfce7;
+    --bad: #dc2626; --bad-bg: #fee2e2;
+    --pending-bg: #e0e7ff; --pending: #4338ca;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  .topbar { background: var(--card); border-bottom: 1px solid var(--line); padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
+  .topbar h1 { font-size: 18px; margin: 0; }
+  .topbar .who { font-size: 13px; color: var(--muted); }
+  .logout-btn { background: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--muted); }
+  .logout-btn:hover { background: #f3f4f6; }
+
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .card h2 { font-size: 15px; margin: 0; }
+  .count-pill { background: var(--pending-bg); color: var(--pending); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 100px; }
+
+  #login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .login-box { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 36px; width: 320px; }
+  .login-box h1 { font-size: 18px; margin: 0 0 4px 0; }
+  .login-box p.sub { font-size: 13px; color: var(--muted); margin: 0 0 20px 0; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; margin-top: 12px; }
+  input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; font-family: inherit; }
+  button.primary { width: 100%; margin-top: 18px; background: var(--brand); color: white; border: none; border-radius: 6px; padding: 10px; font-size: 14px; cursor: pointer; font-weight: 500; }
+  button.primary:hover { background: var(--brand-dark); }
+  button.primary:disabled { background: #93a3b8; cursor: not-allowed; }
+  .error-msg { color: var(--bad); font-size: 13px; margin-top: 10px; display: none; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 100px; font-size: 11px; font-weight: 600; }
+  .badge.PENDING { background: var(--pending-bg); color: var(--pending); }
+  .badge.MGR_APPROVED, .badge.HR_APPROVED { background: var(--ok-bg); color: var(--ok); }
+  .badge.REJECTED, .badge.AUTO_REJECTED { background: var(--bad-bg); color: var(--bad); }
+  .approver-tag { font-size: 11px; color: var(--muted); }
+
+  .loading { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; }
+  .empty { color: var(--muted); font-size: 13px; padding: 16px; text-align: center; }
+
+  .download-btn { background: white; border: 1px solid var(--line); border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer; color: var(--ink); }
+  .download-btn:hover { background: #f3f4f6; }
+
+  .cal-legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .cal-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <h1>Leave Portal</h1>
+    <p class="sub">Sign in with your Manager/HR account</p>
+    <label for="login-email">Email</label>
+    <input type="email" id="login-email" placeholder="you@company.com">
+    <label for="login-password">Password</label>
+    <input type="password" id="login-password" placeholder="••••••••">
+    <button class="primary" id="login-btn" onclick="doLogin()">Sign in</button>
+    <div class="error-msg" id="login-error"></div>
+  </div>
+</div>
+
+<div id="dashboard" style="display:none;">
+  <div class="topbar">
+    <h1>Leave Portal — Manager/HR</h1>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <span class="who" id="who-label"></span>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Pending approvals</h2>
+        <span class="count-pill" id="pending-count">0</span>
+      </div>
+      <div id="pending-container"><div class="loading">Loading…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Team absence overview — upcoming approved leave</h2>
+        <button class="download-btn" onclick="downloadReport()">Download CSV report</button>
+      </div>
+      <div class="cal-legend">
+        <span><span class="cal-dot" style="background:#16a34a"></span> Approved</span>
+      </div>
+      <div id="approved-container"><div class="loading">Loading…</div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ============ CONFIG ============ */
+const COGNITO_USER_POOL_ID = "ap-south-1_4QWxRsMl2";
+const COGNITO_CLIENT_ID = "7jk73fir1e5h5b8m4596elij4g";
+const API_BASE_URL = "https://l2ntfvrtk6.execute-api.ap-south-1.amazonaws.com/dev";
+/* ================================= */
+
+const poolData = { UserPoolId: COGNITO_USER_POOL_ID, ClientId: COGNITO_CLIENT_ID };
+const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+let currentIdToken = null;
+
+window.onload = function () {
+  const cognitoUser = userPool.getCurrentUser();
+  if (cognitoUser != null) {
+    cognitoUser.getSession(function (err, session) {
+      if (err || !session.isValid()) { showLogin(); return; }
+      currentIdToken = session.getIdToken().getJwtToken();
+      showDashboard(cognitoUser.getUsername());
+    });
+  } else {
+    showLogin();
+  }
+};
+
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+}
+
+function showDashboard(username) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('who-label').textContent = username;
+  loadPending();
+  loadApproved();
+}
+
+function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  errorEl.style.display = 'none';
+
+  if (!email || !password) {
+    errorEl.textContent = 'Please enter both email and password.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+
+  const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({ Username: email, Password: password });
+  const cognitoUser = new AmazonCognitoIdentity.CognitoUser({ Username: email, Pool: userPool });
+
+  cognitoUser.authenticateUser(authDetails, {
+    onSuccess: function (session) {
+      currentIdToken = session.getIdToken().getJwtToken();
+      showDashboard(email);
+    },
+    onFailure: function (err) {
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+      errorEl.textContent = err.message || 'Sign in failed. Check your credentials.';
+      errorEl.style.display = 'block';
+    },
+    newPasswordRequired: function (userAttributes) {
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+      delete userAttributes.email_verified;
+      delete userAttributes.email;
+      const newPassword = window.prompt('Your account needs a permanent password set.\nEnter a new password (min 8 chars, upper/lower/number/symbol):');
+      if (!newPassword) {
+        errorEl.textContent = 'A new password is required to finish signing in.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      cognitoUser.completeNewPasswordChallenge(newPassword, userAttributes, {
+        onSuccess: function (session) {
+          currentIdToken = session.getIdToken().getJwtToken();
+          showDashboard(email);
+        },
+        onFailure: function (err) {
+          errorEl.textContent = err.message || 'Could not set new password.';
+          errorEl.style.display = 'block';
+        }
+      });
+    }
+  });
+}
+
+function doLogout() {
+  const cognitoUser = userPool.getCurrentUser();
+  if (cognitoUser) cognitoUser.signOut();
+  currentIdToken = null;
+  showLogin();
+}
+
+async function loadPending() {
+  const container = document.getElementById('pending-container');
+  try {
+    const res = await fetch(`${API_BASE_URL}/leave/list?mode=pending_approvals`, {
+      headers: { Authorization: currentIdToken }
+    });
+    const data = await res.json();
+    renderPending(data.requests || []);
+  } catch (e) {
+    container.innerHTML = '<div class="empty">Could not load pending approvals.</div>';
+  }
+}
+
+function renderPending(requests) {
+  const container = document.getElementById('pending-container');
+  document.getElementById('pending-count').textContent = requests.length;
+
+  if (requests.length === 0) {
+    container.innerHTML = '<div class="empty">Nothing waiting on review right now.</div>';
+    return;
+  }
+  requests.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+
+  const rows = requests.map(r => {
+    const awaiting = r.current_approver_role
+      ? `<span class="approver-tag">awaiting ${r.current_approver_role}</span>`
+      : `<span class="approver-tag">awaiting manager</span>`;
+    return `
+      <tr>
+        <td>${r.employee_id}</td>
+        <td>${r.leave_type}</td>
+        <td>${r.start_date} → ${r.end_date}</td>
+        <td>${r.requested_days || ''}</td>
+        <td>${r.reason || ''}</td>
+        <td>${awaiting}</td>
+      </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <table>
+      <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Reason</th><th>Stage</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="approver-tag" style="margin-top:10px;">Approve or reject from the email notification sent for each request.</p>`;
+}
+
+let approvedCache = [];
+
+async function loadApproved() {
+  const container = document.getElementById('approved-container');
+  try {
+    const res = await fetch(`${API_BASE_URL}/leave/list?mode=all_approved`, {
+      headers: { Authorization: currentIdToken }
+    });
+    const data = await res.json();
+    approvedCache = data.requests || [];
+    renderApproved(approvedCache);
+  } catch (e) {
+    container.innerHTML = '<div class="empty">Could not load the absence overview.</div>';
+  }
+}
+
+function renderApproved(requests) {
+  const container = document.getElementById('approved-container');
+  if (requests.length === 0) {
+    container.innerHTML = '<div class="empty">No approved leave on record yet.</div>';
+    return;
+  }
+  requests.sort((a, b) => (a.start_date || '').localeCompare(b.start_date || ''));
+
+  const rows = requests.map(r => `
+    <tr>
+      <td>${r.employee_id}</td>
+      <td>${r.leave_type}</td>
+      <td>${r.start_date} → ${r.end_date}</td>
+      <td>${r.requested_days || ''}</td>
+      <td><span class="badge ${r.status}">${r.status.replace('_', ' ')}</span></td>
+    </tr>`).join('');
+
+  container.innerHTML = `
+    <table>
+      <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function downloadReport() {
+  if (approvedCache.length === 0) {
+    alert('No approved leave data to export yet.');
+    return;
+  }
+  const header = ['employee_id', 'leave_type', 'start_date', 'end_date', 'requested_days', 'status'];
+  const lines = [header.join(',')];
+  approvedCache.forEach(r => {
+    lines.push([r.employee_id, r.leave_type, r.start_date, r.end_date, r.requested_days || '', r.status].join(','));
+  });
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `leave_report_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

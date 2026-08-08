@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Leave Portal — Employee</title>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.6/dist/amazon-cognito-identity.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --ink: #1b1f24;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --brand: #2563eb;
+    --brand-dark: #1d4ed8;
+    --ok: #16a34a;
+    --ok-bg: #dcfce7;
+    --warn: #d97706;
+    --warn-bg: #fef3c7;
+    --bad: #dc2626;
+    --bad-bg: #fee2e2;
+    --pending-bg: #e0e7ff;
+    --pending: #4338ca;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  .topbar {
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .topbar h1 { font-size: 18px; margin: 0; }
+  .topbar .who { font-size: 13px; color: var(--muted); }
+  .logout-btn {
+    background: none; border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--muted);
+  }
+  .logout-btn:hover { background: #f3f4f6; }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 20px; margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 14px 0; color: var(--ink); }
+
+  /* Login screen */
+  #login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  }
+  .login-box {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 36px; width: 320px;
+  }
+  .login-box h1 { font-size: 18px; margin: 0 0 4px 0; }
+  .login-box p.sub { font-size: 13px; color: var(--muted); margin: 0 0 20px 0; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; margin-top: 12px; }
+  input, select, textarea {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px;
+    font-size: 14px; font-family: inherit;
+  }
+  button.primary {
+    width: 100%; margin-top: 18px; background: var(--brand); color: white; border: none;
+    border-radius: 6px; padding: 10px; font-size: 14px; cursor: pointer; font-weight: 500;
+  }
+  button.primary:hover { background: var(--brand-dark); }
+  button.primary:disabled { background: #93a3b8; cursor: not-allowed; }
+  .error-msg { color: var(--bad); font-size: 13px; margin-top: 10px; display: none; }
+
+  /* Balance cards */
+  .balance-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;
+  }
+  .balance-card {
+    border: 1px solid var(--line); border-radius: 8px; padding: 14px; text-align: center;
+  }
+  .balance-card .type { font-size: 12px; color: var(--muted); text-transform: capitalize; margin-bottom: 6px; }
+  .balance-card .num { font-size: 24px; font-weight: 600; }
+  .balance-card .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* Apply form */
+  .form-row { display: flex; gap: 12px; }
+  .form-row > div { flex: 1; }
+
+  /* History table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .badge {
+    display: inline-block; padding: 3px 9px; border-radius: 100px; font-size: 11px; font-weight: 600;
+  }
+  .badge.PENDING { background: var(--pending-bg); color: var(--pending); }
+  .badge.MGR_APPROVED, .badge.HR_APPROVED { background: var(--ok-bg); color: var(--ok); }
+  .badge.REJECTED, .badge.AUTO_REJECTED { background: var(--bad-bg); color: var(--bad); }
+
+  .status-msg { font-size: 13px; padding: 10px 12px; border-radius: 6px; margin-top: 12px; display: none; }
+  .status-msg.ok { background: var(--ok-bg); color: var(--ok); display: block; }
+  .status-msg.bad { background: var(--bad-bg); color: var(--bad); display: block; }
+
+  .loading { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN SCREEN ===================== -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>Leave Portal</h1>
+    <p class="sub">Sign in with your employee account</p>
+    <label for="login-email">Email</label>
+    <input type="email" id="login-email" placeholder="you@company.com">
+    <label for="login-password">Password</label>
+    <input type="password" id="login-password" placeholder="••••••••">
+    <button class="primary" id="login-btn" onclick="doLogin()">Sign in</button>
+    <div class="error-msg" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ===================== DASHBOARD ===================== -->
+<div id="dashboard" style="display:none;">
+  <div class="topbar">
+    <h1>Leave Portal</h1>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <span class="who" id="who-label"></span>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <div class="card">
+      <h2>Your leave balances</h2>
+      <div class="balance-grid" id="balance-grid">
+        <div class="loading">Loading balances…</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Apply for leave</h2>
+      <div class="form-row">
+        <div>
+          <label for="leave-type">Leave type</label>
+          <select id="leave-type">
+            <option value="casual">Casual</option>
+            <option value="sick">Sick</option>
+            <option value="earned">Earned</option>
+            <option value="unpaid">Unpaid</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label for="start-date">Start date</label>
+          <input type="date" id="start-date">
+        </div>
+        <div>
+          <label for="end-date">End date</label>
+          <input type="date" id="end-date">
+        </div>
+      </div>
+      <label for="reason">Reason</label>
+      <textarea id="reason" rows="2" placeholder="Briefly describe the reason for leave"></textarea>
+      <button class="primary" id="apply-btn" onclick="submitLeave()">Submit request</button>
+      <div class="status-msg" id="apply-status"></div>
+    </div>
+
+    <div class="card">
+      <h2>Your request history</h2>
+      <div id="history-container">
+        <div class="loading">Loading history…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ============ CONFIG — filled in for this project ============ */
+const COGNITO_USER_POOL_ID = "ap-south-1_4QWxRsMl2";
+const COGNITO_CLIENT_ID = "7jk73fir1e5h5b8m4596elij4g";
+const API_BASE_URL = "https://l2ntfvrtk6.execute-api.ap-south-1.amazonaws.com/dev";
+/* The Cognito username -> employee_id mapping. In a real system this would
+   come from a Cognito custom attribute or a directory lookup. For this demo,
+   every logged-in user is treated as EMP001 so it lines up with the seeded
+   test data used throughout the project. */
+const EMPLOYEE_ID = "EMP001";
+/* ================================================================ */
+
+const poolData = {
+  UserPoolId: COGNITO_USER_POOL_ID,
+  ClientId: COGNITO_CLIENT_ID
+};
+const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+let currentIdToken = null;
+
+// Restore session on page load if one exists
+window.onload = function () {
+  const cognitoUser = userPool.getCurrentUser();
+  if (cognitoUser != null) {
+    cognitoUser.getSession(function (err, session) {
+      if (err || !session.isValid()) {
+        showLogin();
+        return;
+      }
+      currentIdToken = session.getIdToken().getJwtToken();
+      showDashboard(cognitoUser.getUsername());
+    });
+  } else {
+    showLogin();
+  }
+};
+
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+}
+
+function showDashboard(username) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('who-label').textContent = username;
+  loadBalancesAndHistory();
+}
+
+function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  errorEl.style.display = 'none';
+
+  if (!email || !password) {
+    errorEl.textContent = 'Please enter both email and password.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+
+  const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
+    Username: email,
+    Password: password
+  });
+  const cognitoUser = new AmazonCognitoIdentity.CognitoUser({
+    Username: email,
+    Pool: userPool
+  });
+
+  cognitoUser.authenticateUser(authDetails, {
+    onSuccess: function (session) {
+      currentIdToken = session.getIdToken().getJwtToken();
+      showDashboard(email);
+    },
+    onFailure: function (err) {
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+      errorEl.textContent = err.message || 'Sign in failed. Check your credentials.';
+      errorEl.style.display = 'block';
+    },
+    newPasswordRequired: function (userAttributes) {
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+      // Cognito requires setting a permanent password before first login completes.
+      delete userAttributes.email_verified;
+      delete userAttributes.email;
+      const newPassword = window.prompt('Your account needs a permanent password set.\nEnter a new password (min 8 chars, upper/lower/number/symbol):');
+      if (!newPassword) {
+        errorEl.textContent = 'A new password is required to finish signing in.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      cognitoUser.completeNewPasswordChallenge(newPassword, userAttributes, {
+        onSuccess: function (session) {
+          currentIdToken = session.getIdToken().getJwtToken();
+          showDashboard(email);
+        },
+        onFailure: function (err) {
+          errorEl.textContent = err.message || 'Could not set new password.';
+          errorEl.style.display = 'block';
+        }
+      });
+    }
+  });
+}
+
+function doLogout() {
+  const cognitoUser = userPool.getCurrentUser();
+  if (cognitoUser) cognitoUser.signOut();
+  currentIdToken = null;
+  showLogin();
+}
+
+async function loadBalancesAndHistory() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/leave/list?mode=my_requests&employee_id=${EMPLOYEE_ID}`, {
+      headers: { Authorization: currentIdToken }
+    });
+    const data = await res.json();
+    renderBalances(data.balances || []);
+    renderHistory(data.requests || []);
+  } catch (e) {
+    document.getElementById('balance-grid').innerHTML = '<div class="loading">Could not load balances.</div>';
+    document.getElementById('history-container').innerHTML = '<div class="loading">Could not load history.</div>';
+  }
+}
+
+function renderBalances(balances) {
+  const grid = document.getElementById('balance-grid');
+  if (balances.length === 0) {
+    grid.innerHTML = '<div class="loading">No balance records found.</div>';
+    return;
+  }
+  grid.innerHTML = balances.map(b => {
+    const type = b.leave_type_year.split('#')[0];
+    return `
+      <div class="balance-card">
+        <div class="type">${type}</div>
+        <div class="num">${b.remaining}</div>
+        <div class="sub">of ${b.allocated} days · ${b.used} used</div>
+      </div>`;
+  }).join('');
+}
+
+function renderHistory(requests) {
+  const container = document.getElementById('history-container');
+  if (requests.length === 0) {
+    container.innerHTML = '<div class="loading">No leave requests yet.</div>';
+    return;
+  }
+  // Most recent first
+  requests.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+
+  let rows = requests.map(r => `
+    <tr>
+      <td>${r.leave_type}</td>
+      <td>${r.start_date} → ${r.end_date}</td>
+      <td>${r.reason || ''}</td>
+      <td><span class="badge ${r.status}">${r.status.replace('_', ' ')}</span></td>
+    </tr>`).join('');
+
+  container.innerHTML = `
+    <table>
+      <thead>
+        <tr><th>Type</th><th>Dates</th><th>Reason</th><th>Status</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function submitLeave() {
+  const leaveType = document.getElementById('leave-type').value;
+  const startDate = document.getElementById('start-date').value;
+  const endDate = document.getElementById('end-date').value;
+  const reason = document.getElementById('reason').value.trim();
+  const statusEl = document.getElementById('apply-status');
+  const btn = document.getElementById('apply-btn');
+
+  statusEl.className = 'status-msg';
+  statusEl.style.display = 'none';
+
+  if (!startDate || !endDate) {
+    statusEl.className = 'status-msg bad';
+    statusEl.textContent = 'Please choose both a start and end date.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/leave/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: currentIdToken },
+      body: JSON.stringify({
+        employee_id: EMPLOYEE_ID,
+        leave_type: leaveType,
+        start_date: startDate,
+        end_date: endDate,
+        reason: reason
+      })
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      statusEl.className = 'status-msg ok';
+      statusEl.textContent = `Request submitted (${data.request_id}). Your manager has been notified.`;
+      document.getElementById('start-date').value = '';
+      document.getElementById('end-date').value = '';
+      document.getElementById('reason').value = '';
+      loadBalancesAndHistory();
+    } else {
+      statusEl.className = 'status-msg bad';
+      statusEl.textContent = data.reason || data.error || 'Request could not be submitted.';
+    }
+  } catch (e) {
+    statusEl.className = 'status-msg bad';
+    statusEl.textContent = 'Network error — please try again.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit request';
+  }
+}
+</script>
+</body>
+</html>

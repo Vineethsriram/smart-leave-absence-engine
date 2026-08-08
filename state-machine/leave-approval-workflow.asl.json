@@ -1,0 +1,91 @@
+{
+  "Comment": "Leave approval workflow with manager + conditional HR approval",
+  "StartAt": "ManagerReview",
+  "States": {
+    "ManagerReview": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "notifyApprover",
+        "Payload": {
+          "taskToken.$": "$$.Task.Token",
+          "approverRole": "manager",
+          "request.$": "$"
+        }
+      },
+      "ResultPath": "$.managerDecision",
+      "Next": "CheckManagerDecision"
+    },
+    "CheckManagerDecision": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.managerDecision.action",
+          "StringEquals": "reject",
+          "Next": "NotifyRejected"
+        }
+      ],
+      "Default": "CheckIfHRNeeded"
+    },
+    "CheckIfHRNeeded": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.requested_days",
+          "NumericGreaterThan": 5,
+          "Next": "HRReview"
+        }
+      ],
+      "Default": "UpdateBalance"
+    },
+    "HRReview": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "notifyApprover",
+        "Payload": {
+          "taskToken.$": "$$.Task.Token",
+          "approverRole": "hr",
+          "request.$": "$"
+        }
+      },
+      "ResultPath": "$.hrDecision",
+      "Next": "CheckHRDecision"
+    },
+    "CheckHRDecision": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.hrDecision.action",
+          "StringEquals": "reject",
+          "Next": "NotifyRejected"
+        }
+      ],
+      "Default": "UpdateBalance"
+    },
+    "UpdateBalance": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "finalizeRequest",
+        "Payload": {
+          "outcome": "approved",
+          "request.$": "$"
+        }
+      },
+      "End": true
+    },
+    "NotifyRejected": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "finalizeRequest",
+        "Payload": {
+          "outcome": "rejected",
+          "request.$": "$"
+        }
+      },
+      "End": true
+    }
+  }
+}

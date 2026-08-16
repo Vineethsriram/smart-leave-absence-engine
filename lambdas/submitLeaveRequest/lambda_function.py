@@ -1,4 +1,4 @@
-# triggering CI/CD pipeline test
+ # CI/CD pipeline test trigger
 import json
 import boto3
 import uuid

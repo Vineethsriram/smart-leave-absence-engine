@@ -15,14 +15,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Package Lambda into a zip
         run: |
           cd lambdas/submitLeaveRequest
           zip -r ../../function.zip .
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -36,13 +39,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install test dependencies
         run: pip install pytest boto3
+
       - name: Run unit tests
+        env:
+          AWS_DEFAULT_REGION: ap-south-1
         run: pytest tests/test_submitLeaveRequest.py -v
 
   deploy:
@@ -54,17 +62,20 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: lambda-package
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+
       - name: Deploy to AWS Lambda
         run: |
           aws lambda update-function-code \
             --function-name submitLeaveRequest \
             --zip-file fileb://function.zip
+
       - name: Wait for update to finish and verify
         run: |
           aws lambda wait function-updated --function-name submitLeaveRequest

@@ -1,4 +1,5 @@
 # Smart Leave & Absence Management Engine
+[![Deploy submitLeaveRequest](https://github.com/Vineethsriram/smart-leave-absence-engine/actions/workflows/deploy-submitLeaveRequest.yml/badge.svg)](https://github.com/Vineethsriram/smart-leave-absence-engine/actions/workflows/deploy-submitLeaveRequest.yml)
 
 A full-cycle, serverless leave management system built on AWS. Employees apply for leave, managers and HR approve through a structured multi-level workflow, quotas are enforced automatically, and stale/inactive requests get followed up on their own.
 
